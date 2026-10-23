@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Seu orçamento</title>
+  <style>
+    :root { --primary: #0f766e; --primary-50: #e7f5f3; --text: #0f172a; --muted: #64748b; --border: #e2e8f0; --bg: #f4f6f8; --ok: #15803d; --danger: #dc2626; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: var(--text); }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px 40px; }
+    header { background: linear-gradient(135deg, #0b3b38, #0f766e); color: #fff; padding: 22px 16px 54px; }
+    header .wrap { padding: 0 16px; }
+    .clinica { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .marca { width: 34px; height: 34px; border-radius: 10px; background: #14b8a6; display: grid; place-items: center; }
+    h1 { font-size: 22px; margin: 18px 0 4px; }
+    header p { margin: 0; color: #cdeae6; }
+    .card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: 0 4px 16px rgba(15, 23, 42, .06); margin-top: -38px; }
+    .card + .card { margin-top: 14px; }
+    .titulo { font-size: 18px; font-weight: 800; margin: 0; }
+    .muted { color: var(--muted); }
+    .etapas { margin-top: 16px; display: grid; gap: 0; }
+    .etapa { display: grid; grid-template-columns: 30px 1fr; gap: 12px; position: relative; padding-bottom: 16px; }
+    .etapa:not(:last-child)::before { content: ""; position: absolute; left: 14px; top: 30px; bottom: 0; width: 2px; background: var(--border); }
+    .num { width: 30px; height: 30px; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 800; }
+    .etapa h3 { margin: 5px 0 6px; font-size: 14px; }
+    .item { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 4px 0; }
+    .totais { border-top: 1px dashed var(--border); padding-top: 12px; display: grid; gap: 4px; font-size: 14px; }
+    .totais .linha { display: flex; justify-content: space-between; }
+    .total { font-size: 22px; font-weight: 800; color: var(--primary); }
+    .parcelas { background: var(--primary-50); color: var(--primary); border-radius: 10px; padding: 10px 12px; font-weight: 700; margin-top: 10px; text-align: center; }
+    .obs { background: #fffbeb; color: #92400e; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 12px; }
+    label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; margin-top: 4px; }
+    input[type=text] { width: 100%; font: inherit; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-top: 10px; }
+    input[type=text]:focus { outline: 2px solid rgba(15, 118, 110, .3); border-color: var(--primary); }
+    .btn { width: 100%; font: inherit; font-weight: 700; padding: 14px; border-radius: 12px; border: 1px solid var(--border); background: #fff; cursor: pointer; margin-top: 10px; }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .link { background: none; border: 0; color: var(--muted); text-decoration: underline; font: inherit; font-size: 13px; cursor: pointer; display: block; margin: 12px auto 0; }
+    .estado { text-align: center; padding: 10px 0; }
+    .estado .icone { font-size: 44px; }
+    .erro { color: var(--danger); font-size: 14px; margin-top: 8px; }
+    footer { text-align: center; font-size: 12px; color: var(--muted); margin-top: 22px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <header><div class="wrap">
+    <div class="clinica"><div class="marca"><svg viewBox="0 0 32 32" width="22" height="22"><path d="M10 8c-3 0-4 3-3 7 1 3 1 9 3 9s2-5 3-5h6c1 0 1 5 3 5s2-6 3-9c1-4 0-7-3-7-2 0-3 1-6 1s-4-1-6-1z" fill="white"/></svg></div><span id="clinica">Carregando…</span></div>
+    <h1 id="ola">Seu orçamento</h1>
+    <p id="sub"></p>
+  </div></header>
+  <main class="wrap" id="conteudo"></main>
+
+  <script type="module">
+    await import('./demo-boot.js');
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const token = new URLSearchParams(location.search).get('t') || '';
+    const api = (caminho, opcoes) => fetch(`/api/publico/orcamentos/${encodeURIComponent(token)}${caminho}`, opcoes).then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || 'Não foi possível carregar o orçamento.');
+      return d;
+    });
+
+    function render(o) {
+      document.title = `Orçamento · ${o.clinica.nome || ''}`;
+      $('#clinica').textContent = o.clinica.nome || 'Clínica';
+      $('#ola').textContent = `Olá, ${o.paciente}! 👋`;
+      $('#sub').textContent = 'Aqui está o seu plano de tratamento.';
+      const etapas = new Map();
+      for (const i of o.itens) etapas.set(i.etapa, [...(etapas.get(i.etapa) || []), i]);
+      const respondido = o.status === 'aprovado' || o.status === 'recusado';
+
+      $('#conteudo').innerHTML = `
+        <section class="card">
+          <p class="titulo">${esc(o.titulo)}</p>
+          ${o.dentista ? `<div class="muted" style="margin-top:2px">com ${esc(o.dentista)}</div>` : ''}
+          <div class="etapas">${[...etapas.entries()].sort((a, b) => a[0] - b[0]).map(([n, itens]) => `
+            <div class="etapa"><div class="num">${n}</div><div>
+              <h3>${etapas.size > 1 ? `Etapa ${n}` : 'Tratamento'}</h3>
+              ${itens.map((i) => `<div class="item"><span>${esc(i.descricao)}${i.dente ? ` <span class="muted">· dente ${esc(i.dente)}</span>` : ''}</span><b>${brl(i.valor)}</b></div>`).join('')}
+            </div></div>`).join('')}
+          </div>
+          <div class="totais">
+            ${o.desconto ? `<div class="linha"><span class="muted">Subtotal</span><span>${brl(o.subtotal)}</span></div><div class="linha"><span class="muted">Desconto</span><span>− ${brl(o.desconto)}</span></div>` : ''}
+            <div class="linha"><b>Total</b><span class="total">${brl(o.total)}</span></div>
+          </div>
+          ${o.parcelas > 1 ? `<div class="parcelas">ou ${o.parcelas}x de ${brl(o.valor_parcela)}</div>` : ''}
+          ${o.observacoes ? `<div class="obs">📝 ${esc(o.observacoes)}</div>` : ''}
+          ${o.clinica.formas_pagamento ? `<p class="muted" style="font-size:13px;margin:12px 0 0">Formas de pagamento: ${esc(o.clinica.formas_pagamento)}</p>` : ''}
+        </section>
+        <section class="card" id="acao">${respondido ? estado(o) : formulario()}</section>
+        <footer>${esc(o.clinica.nome || '')}${o.clinica.telefone ? ` · ${esc(o.clinica.telefone)}` : ''}<br>${esc(o.clinica.endereco || '')}</footer>`;
+      if (!respondido) ligar();
+    }
+
+    function estado(o) {
+      return o.status === 'aprovado'
+        ? `<div class="estado"><div class="icone">🎉</div><p class="titulo">Orçamento aprovado!</p><p class="muted">Obrigado pela confiança. Já te chamamos no WhatsApp para agendar a primeira etapa.</p></div>`
+        : `<div class="estado"><div class="icone">🙂</div><p class="titulo">Tudo bem!</p><p class="muted">Registramos que você não vai seguir com este orçamento agora. Se mudar de ideia, é só chamar a gente no WhatsApp.</p></div>`;
+    }
+
+    function formulario() {
+      return `
+        <p class="titulo" style="font-size:16px">Aprovar orçamento</p>
+        <label><input type="checkbox" id="concordo"> <span>Li o plano de tratamento e concordo com os procedimentos e valores acima.</span></label>
+        <input type="text" id="nome" placeholder="Digite seu nome completo para assinar" autocomplete="name">
+        <div class="erro" id="erro"></div>
+        <button class="btn primary" id="aprovar" disabled>Aprovar orçamento</button>
+        <button class="btn" id="duvida">Tenho dúvidas, quero falar com a clínica</button>
+        <button class="link" id="recusar">Não quero seguir com este orçamento</button>`;
+    }
+
+    function ligar() {
+      const pronto = () => { $('#aprovar').disabled = !($('#concordo').checked && $('#nome').value.trim().length >= 3); };
+      $('#concordo').addEventListener('change', pronto);
+      $('#nome').addEventListener('input', pronto);
+      const responder = async (acao, botao) => {
+        botao.disabled = true;
+        $('#erro').textContent = '';
+        try {
+          const o = await api('/responder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao, nome: $('#nome').value }) });
+          if (acao === 'duvida') {
+            $('#acao').innerHTML = '<div class="estado"><div class="icone">💬</div><p class="titulo">Combinado!</p><p class="muted">Alguém da nossa equipe vai falar com você pelo WhatsApp para tirar suas dúvidas.</p></div>';
+          } else render(o);
+        } catch (e) {
+          $('#erro').textContent = e.message;
+          botao.disabled = false;
+        }
+      };
+      $('#aprovar').onclick = (e) => responder('aprovar', e.currentTarget);
+      $('#duvida').onclick = (e) => responder('duvida', e.currentTarget);
+      $('#recusar').onclick = (e) => { if (confirm('Tem certeza de que não quer seguir com este orçamento?')) responder('recusar', e.currentTarget); };
+    }
+
+    try {
+      render(await api(''));
+    } catch (e) {
+      $('#clinica').textContent = 'Orçamento';
+      $('#conteudo').innerHTML = `<section class="card"><div class="estado"><div class="icone">🔍</div><p class="titulo">Orçamento não encontrado</p><p class="muted">${esc(e.message)} Confira o link recebido no WhatsApp.</p></div></section>`;
+    }
+  </script>
+</body>
+</html>
